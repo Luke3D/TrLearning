@@ -4,7 +4,7 @@
 %% Train a model on each subject and use majority voting to predict
 % activities of remaining subject
 
-%we first train on healthy and test on patients
+%train on all patients but one and test on patients
 load trainData_healthy
 Nsubj = length(unique(trainingClassifierData.subject));
 subjcodes = unique(trainingClassifierData.subjectID);
