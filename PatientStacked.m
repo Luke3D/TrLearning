@@ -9,7 +9,7 @@ if isempty(p)
     parpool('local')
 end
 
-cd(fileparts(which('PatientModel.m')))
+cd(fileparts(which('PatientStacked.m')))
 currentDir = pwd;
 slashdir = '/';
 addpath([pwd slashdir 'sub']); %create path to helper scripts
@@ -291,21 +291,24 @@ for y = 1:length(IDs)
     [codesRF_main,P_RF_main] = predict(RFmodel_p,features_main);
     codesRF_main = str2num(cell2mat(codesRF_main));
     
-    %Test Random Forest on New Session
+    %Test Random Forest on New Session6
     [codesRF_new,P_RF_new] = predict(RFmodel_p,features_new);
     codesRF_new = str2num(cell2mat(codesRF_new));
     
     %Collect Accuracies
-    [matRF_main,acc_main(y),~] = createConfusionMatrix(codesTrue_main,codesRF_main);
-    [matRF_new,acc_new(y),~] = createConfusionMatrix(codesTrue_new,codesRF_new);
+    [matRF_main, acc_main(y)] = confusionMatrix_5(codesTrue_main,codesRF_main);
+    [matRF_new, acc_new(y)] = confusionMatrix_5(codesTrue_new,codesRF_new);
     
-    correctones = sum(matRF_main,2);
-    correctones = repmat(correctones,[1 length(states)]);
-    diagonal_main = diag(matRF_main./correctones);
-    correctones = sum(matRF_new,2);
-    correctones = repmat(correctones,[1 length(states)]);
-    diagonal_new = diag(matRF_new./correctones);
+%     [matRF_main,acc_main(y),~] = createConfusionMatrix(codesTrue_main,codesRF_main);
+%     [matRF_new,acc_new(y),~] = createConfusionMatrix(codesTrue_new,codesRF_new);
     
+%     correctones = sum(matRF_main,2);
+%     correctones = repmat(correctones,[1 length(states)]);
+%     diagonal_main = diag(matRF_main./correctones);
+%     correctones = sum(matRF_new,2);
+%     correctones = repmat(correctones,[1 length(states)]);
+%     diagonal_new = diag(matRF_new./correctones);
+%    
 %     if length(uniqStates_p) == 3
 %         diagonal_main(2:3) = [];
 %         diagonal_new(2:3) = [];
@@ -353,29 +356,35 @@ ylabel('Training Data Size','FontSize',16)
 set(gca,'Box','off','XTick',[1:length(IDs)],'XTickLabel',num2cell(IDs),'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
 
 %% LAYER 2: TRAIN CLASSIFIER + GENERATE FINAL ACTIVITY PREDICTIONS
-%Train RF
+disp('Initiating Layer 2...')
+
+%Random Forest (RF)
+disp('Random Forest (RF):')
 ntrees = 100;
 RFmodel = TreeBagger(ntrees,features_new,codesTrue_new,'OOBVarImp',OOBVarImp,'Options',opts_ag);
-
-%Test RF
 [codesRF_FINAL,P_RF_FINAL] = predict(RFmodel,features_main);
 [matRF_FINAL,acc_RF_FINAL,~] = createConfusionMatrix(codesTrue_main,codesRF_FINAL);
 disp(matRF_FINAL)
 disp(acc_RF_FINAL)
 
-
+%Logistic Regression (LR)
+% disp('Logistic Regression (LR):')
 % B = mnrfit(features_new,codesTrue_new);
 % pihat = mnrval(B,features_main);
 % [~, codesLR_FINAL] = max(pihat,[],2);
-% [matRF_FINAL,acc_FINAL,~] = createConfusionMatrix(codesTrue_main,codesLR_FINAL);
-% disp(acc_FINAL)
+% [matLR_FINAL,acc_LR_FINAL,~] = createConfusionMatrix(codesTrue_main,codesLR_FINAL);
+% disp(matLR_FINAL)
+% disp(acc_LR_FINAL)
 
-% %SVM
+%Linear Support Vector Machine (SVM)
+% disp('Linear Support Vector Machine (SVM):')
 % options = statset('UseParallel',1);
 % template = templateSVM('KernelFunction', 'linear', 'PolynomialOrder', [], 'KernelScale', 'auto', 'BoxConstraint', 1, 'Standardize', 1);
 % trainedClassifier = fitcecoc(features_new, codesTrue_new, 'Learners', template, 'FitPosterior', 1, 'Coding', 'onevsone', 'ResponseName', 'outcome','Options',options);
 % [codesSVM_FINAL, ~, ~, ~] = predict(trainedClassifier,features_main);
 % [matSVM_FINAL,acc_SVM_FINAL,~] = createConfusionMatrix(codesTrue_main,codesSVM_FINAL);
+% disp(matSVM_FINAL)
 % disp(acc_SVM_FINAL)
 
+disp('Layer 2 complete.')
 %% COMPILE RESULTS
