@@ -215,7 +215,7 @@ end
 disp('Data extracted for new session.')
 fprintf('\n')
 
-%% LAYER 1: TRAIN CLASSIFIERS + GENERATE POSTERIORS
+%% LAYER 1: TRAIN CLASSIFIERS + GENERATE POSTERIORS (PATIENTS)
 %Isolate brace and sessions
 for zz = 1:length(trainingClassifierData.subject)
     temp = char(trainingClassifierData.subject(zz));
@@ -325,6 +325,69 @@ for y = 1:length(IDs)
     posteriors_main = [posteriors_main P_RF_main];
     posteriors_new = [posteriors_new P_RF_new];
 end
+
+%% LAYER 1: TRAIN CLASSIFIERS + GENERATE POSTERIORS (HEALTHY)
+%Load healthy data
+clear trainingClassifierData
+population = 'healthy';
+filename = ['trainData_' population '.mat'];
+load(filename)
+
+IDs_healthy = unique(trainingClassifierData.subjectID);
+
+%Initialize Variables
+n_act_h = zeros(length(IDs_healthy),1);
+n_train_h = zeros(length(IDs_healthy),1);
+acc_new_h = zeros(length(IDs_healthy),1);
+acc_main_h = zeros(length(IDs_healthy),1);
+
+fprintf('\n')
+disp('Cycling through each healthy subject:')
+for y = 1:length(IDs_healthy)
+    subject_indices = find(IDs_healthy(y)==trainingClassifierData.subjectID);
+    healthy = isolateSubject(trainingClassifierData,subject_indices);
+    
+    %Extract data
+    features_h     = healthy.features; %features for classifier
+    subjects_h     = healthy.subject;  %subject number
+    uniqSubjects_h = unique(subjects_h); %list of subjects
+    statesTrue_h = healthy.activity;     %all the classifier data
+    subjectID_h = healthy.subjectID;
+    sessionID_h = healthy.sessionID;
+    uniqStates_h  = unique(statesTrue_h);
+    
+    n_act_h(y) = length(uniqStates_h);
+    n_train_h(y) = size(features_h,1);
+    
+    %Generate codesTrue
+    codesTrue_h = zeros(1,length(statesTrue_h));
+    for i = 1:length(statesTrue_h)
+        codesTrue_h(i)  = find(strcmp(statesTrue_h{i},states));
+    end
+    
+    %Train Random Forest on Global Patient
+    ntrees = 100;
+    disp(['RF Train - Healthy '  num2str(IDs_healthy(y)) '  #Samples Train = ' num2str(size(features_h,1))]);
+    opts_ag = statset('UseParallel',1);
+    RFmodel_p = TreeBagger(ntrees,features_h,codesTrue_h,'OOBVarImp',OOBVarImp,'Options',opts_ag);
+    
+    %Test Random Forest on Main Sessions
+    [codesRF_main,P_RF_main] = predict(RFmodel_p,features_main);
+    codesRF_main = str2num(cell2mat(codesRF_main));
+    
+    %Test Random Forest on New Session6
+    [codesRF_new,P_RF_new] = predict(RFmodel_p,features_new);
+    codesRF_new = str2num(cell2mat(codesRF_new));
+    
+    %Collect Accuracies
+    [matRF_main, acc_main_h(y)] = confusionMatrix_5(codesTrue_main,codesRF_main);
+    [matRF_new, acc_new_h(y)] = confusionMatrix_5(codesTrue_new,codesRF_new);
+    
+    %Collect Posteriors
+    posteriors_main = [posteriors_main P_RF_main];
+    posteriors_new = [posteriors_new P_RF_new];
+end
+
 disp('Posteriors generated for main and new sessions.')
 
 %% LAYER 1: GENERATE FEATURES
@@ -335,25 +398,25 @@ disp('Layer 1 complete.')
 fprintf('\n')
 
 %% LAYER 1: SUMMARY TABLE
-layer1_tbl = table(IDs,n_act,n_train,acc_new,acc_main,'VariableNames',{'ID','N_Activities','Train_Size','Acc_New','Acc_Main'});
+layer1_tbl = table([IDs; IDs_healthy],[n_act; n_act_h],[n_train; n_train_h],[acc_new; acc_new_h],[acc_main; acc_main_h],'VariableNames',{'ID','N_Activities','Train_Size','Acc_New','Acc_Main'});
 disp(layer1_tbl);
 
 figure;
 subplot(2,1,1)
 hold on
-plot(1:length(IDs),acc_new,'LineWidth',2)
-plot(1:length(IDs),acc_main,'LineWidth',2)
+plot(1:length([IDs; IDs_healthy]),[acc_new; acc_new_h],'LineWidth',2)
+plot(1:length([IDs; IDs_healthy]),[acc_main; acc_main_h],'LineWidth',2)
 ylim([0 1])
 ylabel('Accuracy','FontSize',16)
-set(gca,'Box','off','XTick',[1:length(IDs)],'XTickLabel',{},'YTick',[0.1:0.1:1],'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
+set(gca,'Box','off','XTick',[1:(length(IDs) + length(IDs_healthy))],'XTickLabel',{},'YTick',[0.1:0.1:1],'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
 legend({'Accuracy New','Accuracy Main'},'FontSize',16)
 hold off
 
 subplot(2,1,2)
-plot(1:length(IDs),n_train,'LineWidth',2)
+plot(1:length([IDs; IDs_healthy]),[n_train; n_train_h],'LineWidth',2)
 xlabel('C-Brace Subject ID','FontSize',16)
 ylabel('Training Data Size','FontSize',16)
-set(gca,'Box','off','XTick',[1:length(IDs)],'XTickLabel',num2cell(IDs),'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
+set(gca,'Box','off','XTick',[1:(length(IDs) + length(IDs_healthy))],'XTickLabel',num2cell([IDs; IDs_healthy]),'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
 
 %% LAYER 2: TRAIN CLASSIFIER + GENERATE FINAL ACTIVITY PREDICTIONS
 disp('Initiating Layer 2...')
