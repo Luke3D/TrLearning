@@ -363,7 +363,8 @@ disp('Random Forest (RF):')
 ntrees = 100;
 RFmodel = TreeBagger(ntrees,features_new,codesTrue_new,'OOBVarImp',OOBVarImp,'Options',opts_ag);
 [codesRF_FINAL,P_RF_FINAL] = predict(RFmodel,features_main);
-[matRF_FINAL,acc_RF_FINAL,~] = createConfusionMatrix(codesTrue_main,codesRF_FINAL);
+codesRF_FINAL = str2num(cell2mat(codesRF_FINAL));
+[matRF_FINAL, acc_RF_FINAL] = confusionMatrix_5(codesTrue_main,codesRF_FINAL);
 disp(matRF_FINAL)
 disp(acc_RF_FINAL)
 
