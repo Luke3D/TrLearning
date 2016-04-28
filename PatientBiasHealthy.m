@@ -227,18 +227,22 @@ patients_temp = isolateSession(patients_temp_2,max_sessions,min_sessions);
 IDs = unique(trainingClassifierData.subjectID);
 ind_temp = find(subject_analyze == IDs); %find patient to analyze
 IDs(ind_temp) = []; %remove patient so list contains global patients
-posteriors_new = []; %stores all posteriors to be generated
-posteriors_main = []; %stores all posteriors to be generated
+
 n_act = zeros(length(IDs),1);
 n_train = zeros(length(IDs),1);
-acc_new = zeros(length(IDs),1);
-acc_main = zeros(length(IDs),1);
-acc_act_new = cell(length(IDs),1); %stores acccuracies for each activity for each patient
+
+%Bias model variables
+ntrees = 100;
+accuracies = zeros(ntrees,length(IDs));
+codesTree = cell(length(IDs),1);
 
 disp('Initiating Layer 1...')
 disp('Cycling through each global patient:')
 %Cycle through each patient
 for y = 1:length(IDs)
+    
+    %Allocate space
+    codesTree{y} = zeros(length(codesTrue_main),ntrees);
     
     %Isolate  subject
     subject_indices = find(IDs(y)==patients_temp.subjectID);
@@ -282,48 +286,21 @@ for y = 1:length(IDs)
     end
     
     %Train Random Forest on Global Patient
-    ntrees = 100;
     disp(['RF Train - Patient '  num2str(IDs(y)) '  #Samples Train = ' num2str(size(features_p,1))]);
     opts_ag = statset('UseParallel',1);
     RFmodel_p = TreeBagger(ntrees,features_p,codesTrue_p,'OOBVarImp',OOBVarImp,'Options',opts_ag);
     
-    %Test Random Forest on Main Sessions
-    [codesRF_main,P_RF_main] = predict(RFmodel_p,features_main);
-    codesRF_main = str2num(cell2mat(codesRF_main));
-    
-    %Test Random Forest on New Session
-    [codesRF_new,P_RF_new] = predict(RFmodel_p,features_new);
-    codesRF_new = str2num(cell2mat(codesRF_new));
-    
-    %Collect Accuracies
-    [matRF_main, acc_main(y)] = confusionMatrix_5(codesTrue_main,codesRF_main);
-    [matRF_new, acc_new(y)] = confusionMatrix_5(codesTrue_new,codesRF_new);
-    
-%     [matRF_main,acc_main(y),~] = createConfusionMatrix(codesTrue_main,codesRF_main);
-%     [matRF_new,acc_new(y),~] = createConfusionMatrix(codesTrue_new,codesRF_new);
-    
-%     correctones = sum(matRF_main,2);
-%     correctones = repmat(correctones,[1 length(states)]);
-%     diagonal_main = diag(matRF_main./correctones);
-%     correctones = sum(matRF_new,2);
-%     correctones = repmat(correctones,[1 length(states)]);
-%     diagonal_new = diag(matRF_new./correctones);
-%    
-%     if length(uniqStates_p) == 3
-%         diagonal_main(2:3) = [];
-%         diagonal_new(2:3) = [];
-%     end
-%     
-%     for h = 1:size(P_RF_main,1)
-%         P_RF_main(h,:) = (P_RF_main(h,:).*diagonal_main').*acc_main(y);
-%     end
-%     for h = 1:size(P_RF_new,1)
-%         P_RF_new(h,:) = (P_RF_new(h,:).*diagonal_new').*acc_new(y);
-%     end
-    
-    %Collect Posteriors
-    posteriors_main = [posteriors_main P_RF_main];
-    posteriors_new = [posteriors_new P_RF_new];
+    %Predict with Each Tree from RF
+    for p = 1:ntrees
+        %Predict with each tree on fourth session
+        codesTree_new = RFmodel_p.Trees{p}.predict(features_new);
+        codesTree_new = str2num(cell2mat(codesTree_new));
+        [~, accuracies(p,y)] = confusionMatrix_5(codesTrue_new,codesTree_new);
+        
+        %Predict with each tree on first three sessions
+        codesTree_main = RFmodel_p.Trees{p}.predict(features_main);
+        codesTree{y}(:,p) = str2num(cell2mat(codesTree_main));        
+    end
 end
 
 %% LAYER 1: TRAIN CLASSIFIERS + GENERATE POSTERIORS (HEALTHY)
@@ -338,8 +315,9 @@ IDs_healthy = unique(trainingClassifierData.subjectID);
 %Initialize Variables
 n_act_h = zeros(length(IDs_healthy),1);
 n_train_h = zeros(length(IDs_healthy),1);
-acc_new_h = zeros(length(IDs_healthy),1);
-acc_main_h = zeros(length(IDs_healthy),1);
+
+accuracies_h = zeros(ntrees,length(IDs));
+codesTree_h = cell(length(IDs),1);
 
 fprintf('\n')
 disp('Cycling through each healthy subject:')
@@ -369,94 +347,66 @@ for y = 1:length(IDs_healthy)
     ntrees = 100;
     disp(['RF Train - Healthy '  num2str(IDs_healthy(y)) '  #Samples Train = ' num2str(size(features_h,1))]);
     opts_ag = statset('UseParallel',1);
-    RFmodel_p = TreeBagger(ntrees,features_h,codesTrue_h,'OOBVarImp',OOBVarImp,'Options',opts_ag);
+    RFmodel_h = TreeBagger(ntrees,features_h,codesTrue_h,'OOBVarImp',OOBVarImp,'Options',opts_ag);
     
-    %Test Random Forest on Main Sessions
-    [codesRF_main,P_RF_main] = predict(RFmodel_p,features_main);
-    codesRF_main = str2num(cell2mat(codesRF_main));
-    
-    %Test Random Forest on New Session6
-    [codesRF_new,P_RF_new] = predict(RFmodel_p,features_new);
-    codesRF_new = str2num(cell2mat(codesRF_new));
-    
-    %Collect Accuracies
-    [matRF_main, acc_main_h(y)] = confusionMatrix_5(codesTrue_main,codesRF_main);
-    [matRF_new, acc_new_h(y)] = confusionMatrix_5(codesTrue_new,codesRF_new);
-    
-    %Collect Posteriors
-    posteriors_main = [posteriors_main P_RF_main];
-    posteriors_new = [posteriors_new P_RF_new];
+    %Predict with Each Tree from RF
+    for p = 1:ntrees
+        %Predict with each tree on fourth session
+        codesTree_new = RFmodel_h.Trees{p}.predict(features_new);
+        codesTree_new = str2num(cell2mat(codesTree_new));
+        [~, accuracies_h(p,y)] = confusionMatrix_5(codesTrue_new,codesTree_new);
+        
+        %Predict with each tree on first three sessions
+        codesTree_main = RFmodel_h.Trees{p}.predict(features_main);
+        codesTree_h{y}(:,p) = str2num(cell2mat(codesTree_main));        
+    end
 end
 
 disp('Posteriors generated for main and new sessions.')
 
-%% LAYER 1: GENERATE FEATURES
-features_main = getFeaturesTR(posteriors_main);
-features_new = getFeaturesTR(posteriors_new);
-disp('Feature generation complete')
-disp('Layer 1 complete.')
-fprintf('\n')
+% %% LAYER 1: SUMMARY TABLE
+% layer1_tbl = table([IDs; IDs_healthy],[n_act; n_act_h],[n_train; n_train_h],[acc_new; acc_new_h],[acc_main; acc_main_h],'VariableNames',{'ID','N_Activities','Train_Size','Acc_New','Acc_Main'});
+% disp(layer1_tbl);
+% 
+% figure;
+% subplot(2,1,1)
+% hold on
+% plot(1:length([IDs; IDs_healthy]),[acc_new; acc_new_h],'LineWidth',2)
+% plot(1:length([IDs; IDs_healthy]),[acc_main; acc_main_h],'LineWidth',2)
+% ylim([0 1])
+% ylabel('Accuracy','FontSize',16)
+% set(gca,'Box','off','XTick',[1:(length(IDs) + length(IDs_healthy))],'XTickLabel',{},'YTick',[0.1:0.1:1],'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
+% legend({'Accuracy New','Accuracy Main'},'FontSize',16)
+% hold off
+% 
+% subplot(2,1,2)
+% plot(1:length([IDs; IDs_healthy]),[n_train; n_train_h],'LineWidth',2)
+% xlabel('C-Brace Subject ID','FontSize',16)
+% ylabel('Training Data Size','FontSize',16)
+% set(gca,'Box','off','XTick',[1:(length(IDs) + length(IDs_healthy))],'XTickLabel',num2cell([IDs; IDs_healthy]),'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
 
-%% LAYER 1: SUMMARY TABLE
-layer1_tbl = table([IDs; IDs_healthy],[n_act; n_act_h],[n_train; n_train_h],[acc_new; acc_new_h],[acc_main; acc_main_h],'VariableNames',{'ID','N_Activities','Train_Size','Acc_New','Acc_Main'});
-disp(layer1_tbl);
+%% MAJORITY VOTING
 
-figure;
-subplot(2,1,1)
-hold on
-plot(1:length([IDs; IDs_healthy]),[acc_new; acc_new_h],'LineWidth',2)
-plot(1:length([IDs; IDs_healthy]),[acc_main; acc_main_h],'LineWidth',2)
-ylim([0 1])
-ylabel('Accuracy','FontSize',16)
-set(gca,'Box','off','XTick',[1:(length(IDs) + length(IDs_healthy))],'XTickLabel',{},'YTick',[0.1:0.1:1],'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
-legend({'Accuracy New','Accuracy Main'},'FontSize',16)
-hold off
+voting_mat = zeros(length(codesTrue_main),5);
 
-subplot(2,1,2)
-plot(1:length([IDs; IDs_healthy]),[n_train; n_train_h],'LineWidth',2)
-xlabel('C-Brace Subject ID','FontSize',16)
-ylabel('Training Data Size','FontSize',16)
-set(gca,'Box','off','XTick',[1:(length(IDs) + length(IDs_healthy))],'XTickLabel',num2cell([IDs; IDs_healthy]),'TickDir','out','LineWidth',2,'FontSize',14,'FontWeight','bold');
+%Vote with patients
+for y = 1:length(IDs)
+    %Scale the codes
+    for p = 1:ntrees
+        voting_mat = voting_mat + codesTransform(codesTree{y}(:,p)).*exp(1/(1-accuracies(p,y)));
+    end
+end
 
-%% LAYER 2: TRAIN CLASSIFIER + GENERATE FINAL ACTIVITY PREDICTIONS
-disp('Initiating Layer 2...')
+%Vote with healthy
+for y = 1:length(IDs_healthy)
+    %Scale the codes
+    for p = 1:ntrees
+        voting_mat = voting_mat + codesTransform(codesTree_h{y}(:,p)).*exp(1/(1-accuracies_h(p,y)));
+    end
+end
 
-%Random Forest (RF)
-disp('Random Forest (RF):')
-ntrees = 100;
-RFmodel = TreeBagger(ntrees,features_new,codesTrue_new,'OOBVarImp',OOBVarImp,'Options',opts_ag);
-[codesRF_FINAL,P_RF_FINAL] = predict(RFmodel,features_main);
-codesRF_FINAL = str2num(cell2mat(codesRF_FINAL));
-[matRF_FINAL,acc_RF_FINAL] = confusionMatrix_5(codesTrue_main,codesRF_FINAL);
-disp(matRF_FINAL)
-disp(acc_RF_FINAL)
-
-%Logistic Regression (LR)
-% disp('Logistic Regression (LR):')
-% B = mnrfit(features_new,codesTrue_new);
-% pihat = mnrval(B,features_main);
-% [~, codesLR_FINAL] = max(pihat,[],2);
-% [matLR_FINAL,acc_LR_FINAL,~] = createConfusionMatrix(codesTrue_main,codesLR_FINAL);
-% disp(matLR_FINAL)
-% disp(acc_LR_FINAL)
-
-%Linear Support Vector Machine (SVM)
-% disp('Linear Support Vector Machine (SVM):')
-% options = statset('UseParallel',1);
-% template = templateSVM('KernelFunction', 'linear', 'PolynomialOrder', [], 'KernelScale', 'auto', 'BoxConstraint', 1, 'Standardize', 1);
-% trainedClassifier = fitcecoc(features_new, codesTrue_new, 'Learners', template, 'FitPosterior', 1, 'Coding', 'onevsone', 'ResponseName', 'outcome','Options',options);
-% [codesSVM_FINAL, ~, ~, ~] = predict(trainedClassifier,features_main);
-% [matSVM_FINAL,acc_SVM_FINAL,~] = createConfusionMatrix(codesTrue_main,codesSVM_FINAL);
-% disp(matSVM_FINAL)
-% disp(acc_SVM_FINAL)
-
-%Naive Bayesian (NB)
-disp('Naive Bayesian (NB):')
-NB = fitcnb(features_new,codesTrue_new);
-[codesNB_FINAL,P_NB_FINAL] = predict(NB,features_main);
-[matNB_FINAL, acc_NB_FINAL] = confusionMatrix_5(codesTrue_main,codesNB_FINAL);
-disp(matNB_FINAL)
-disp(acc_NB_FINAL)
-
-disp('Layer 2 complete.')
-%% COMPILE RESULTS
+%Generate predicted codes
+[~, codes_FINAL] = max(voting_mat,[],2);
+[matB_FINAL, acc_B_FINAL] = confusionMatrix_5(codesTrue_main,codes_FINAL);
+disp(matB_FINAL)
+disp(acc_B_FINAL)
