@@ -45,7 +45,7 @@ Yte = cData.labels(indte);
 
 %split target data from test data (use 4th session as target data)
 indtarget = cData.sessionID(indte) == 4;
-Xtarget = Xte(indtarget,:); Ytarget = Yte(indtarget);
+Xtarget = Xte(indtarget,:); Ytarget = Yte(indtarget); Ytarget = Ytarget';
 Xte = Xte(~indtarget,:); Yte = Yte(~indtarget);
 
 %train a forest on training data
@@ -61,18 +61,24 @@ cmat = confusionmat(Yte,Yfit)
 accRF = trace(cmat)/sum(sum(cmat))
 cmat_norm = cmat./repmat(sum(cmat,2),[1 length(cmat)])
 
-%% reweigh the output based to favor trees with lower error rates
+%% reweigh the output based to favor trees with lower error rates on the target data
 %compute accuracy for each tree
 acc = [];
 for t = 1:ntrees
     yt = RF.Trees{t}.predict(Xtarget);
     yt = str2num(cell2mat(yt));
-    acc(t) = sum(yt==Ytarget')/length(Ytarget);
+    %acc(t) = sum(yt==Ytarget')/length(Ytarget);
+    for c = 1:unique(yt)
+        ic = find(Ytarget == c); 
+        err(c) = sum(yt(ic)~=Ytarget(ic))/length(Ytarget(ic));
+    end
+    BER = mean(err);    %Balanced error rate
+    acc(t) = 1-BER; 
 end
-figure, plot(acc), xlabel('Tree'), ylabel('accuracy'), title('Accuracy on target data')
+figure, plot(acc), xlabel('Tree'), ylabel('accuracy'), title('Balanced Accuracy on target data')
 
-treeWeights = exp(1./(1-acc));
-treeWeights = (treeWeights-min(treeWeights))/(max(treeWeights)-min(treeWeights))
+% treeWeights = exp(1./(1-acc));
+treeWeights = acc;
 figure, plot(treeWeights),xlabel('Tree'), ylabel('weight'), title('Weight on each tree')
 
 [Yfit_target,P_RF_target]=predict(RF,Xte,'TreeWeights',treeWeights);
