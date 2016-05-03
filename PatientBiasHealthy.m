@@ -235,6 +235,7 @@ n_train = zeros(length(IDs),1);
 ntrees = 100;
 accuracies = zeros(ntrees,length(IDs));
 codesTree = cell(length(IDs),1);
+diagonals = cell(ntrees,length(IDs));
 
 disp('Initiating Layer 1...')
 disp('Cycling through each global patient:')
@@ -295,7 +296,8 @@ for y = 1:length(IDs)
         %Predict with each tree on fourth session
         codesTree_new = RFmodel_p.Trees{p}.predict(features_new);
         codesTree_new = str2num(cell2mat(codesTree_new));
-        [~, accuracies(p,y)] = confusionMatrix_5(codesTrue_new,codesTree_new);
+        [cmat, accuracies(p,y)] = confusionMatrix_5(codesTrue_new,codesTree_new);
+        diagonals{p,y} = diag(cmat);        
         
         %Predict with each tree on first three sessions
         codesTree_main = RFmodel_p.Trees{p}.predict(features_main);
@@ -318,6 +320,7 @@ n_train_h = zeros(length(IDs_healthy),1);
 
 accuracies_h = zeros(ntrees,length(IDs));
 codesTree_h = cell(length(IDs),1);
+diagonals_h = cell(ntrees,length(IDs));
 
 fprintf('\n')
 disp('Cycling through each healthy subject:')
@@ -354,7 +357,8 @@ for y = 1:length(IDs_healthy)
         %Predict with each tree on fourth session
         codesTree_new = RFmodel_h.Trees{p}.predict(features_new);
         codesTree_new = str2num(cell2mat(codesTree_new));
-        [~, accuracies_h(p,y)] = confusionMatrix_5(codesTrue_new,codesTree_new);
+        [cmat, accuracies_h(p,y)] = confusionMatrix_5(codesTrue_new,codesTree_new);
+        diagonals_h{p,y} = diag(cmat);
         
         %Predict with each tree on first three sessions
         codesTree_main = RFmodel_h.Trees{p}.predict(features_main);
@@ -393,7 +397,9 @@ voting_mat = zeros(length(codesTrue_main),5);
 for y = 1:length(IDs)
     %Scale the codes
     for p = 1:ntrees
-        voting_mat = voting_mat + codesTransform(codesTree{y}(:,p)).*exp(1/(1-accuracies(p,y)));
+        BER = 9;
+        voting_mat = voting_mat + codesTransform(codesTree{y}(:,p));
+        %voting_mat = voting_mat + codesTransform(codesTree{y}(:,p)).*exp(1/(1-accuracies(p,y)));
     end
 end
 

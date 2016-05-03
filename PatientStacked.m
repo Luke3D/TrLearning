@@ -396,13 +396,12 @@ disp(acc_RF_FINAL)
 % disp(acc_SVM_FINAL)
 
 %Naive Bayesian (NB)
-disp('Naive Bayesian (NB):')
-NB = fitcnb(features_new,codesTrue_new);
-[codesNB_FINAL,P_NB_FINAL] = predict(NB,features_main);
-[matNB_FINAL, acc_NB_FINAL] = confusionMatrix_5(codesTrue_main,codesNB_FINAL);
-disp(matNB_FINAL)
-disp(acc_NB_FINAL)
-
+% disp('Naive Bayesian (NB):')
+% NB = fitcnb(features_new,codesTrue_new);
+% [codesNB_FINAL,P_NB_FINAL] = predict(NB,features_main);
+% [matNB_FINAL, acc_NB_FINAL] = confusionMatrix_5(codesTrue_main,codesNB_FINAL);
+% disp(matNB_FINAL)
+% disp(acc_NB_FINAL)
 
 disp('Layer 2 complete.')
 %% COMPILE RESULTS

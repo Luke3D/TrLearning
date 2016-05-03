@@ -7,7 +7,7 @@ function features = getFeaturesTR(posteriors)
     iqrange = zeros(size(posteriors,1),1);
     for z = 1:size(posteriors,1)
         entropy(z) = -sum(posteriors(z,:).*log2(posteriors(z,:)));
-        variance(z) = var(posteriors(z,:));
+        variance(z) = var(posteriors(z,:)).*iqr(posteriors(z,:));
         skew(z) = skewness(posteriors(z,:));
         iqrange(z) = iqr(posteriors(z,:));
     end
