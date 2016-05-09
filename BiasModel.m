@@ -1,6 +1,6 @@
 %RF model where the output is weighted by trees which give better
 %prediction on target data
-clear
+clear, clc
 load TrainData.mat
 %% split by brace type (use only C-brace data) for patients
 % patientdata = load('trainData_patient.mat');
@@ -46,10 +46,10 @@ Yte = cData.labels(indte);
 %split target data from test data (use 4th session as target data)
 indtarget = cData.sessionID(indte) == 4;
 Xtarget = Xte(indtarget,:); Ytarget = Yte(indtarget); Ytarget = Ytarget';
-Xte = Xte(~indtarget,:); Yte = Yte(~indtarget);
+Xte = Xte(~indtarget,:); Yte = Yte(~indtarget)';
 
 %train a forest on training data
-ntrees = 100;
+ntrees = 200;
 opts = statset('UseParallel',1);
 % disp(['training model ', num2str(s)])
 RF = TreeBagger(ntrees,Xtr,Ytr,'Options',opts)
@@ -57,10 +57,15 @@ RF = TreeBagger(ntrees,Xtr,Ytr,'Options',opts)
 %compute accuracy of forest on remaining subject
 [Yfit,P_RF] = predict(RF,Xte);
 Yfit = str2num(cell2mat(Yfit));
-cmat = confusionmat(Yte,Yfit)
+cmat = confusionmat(Yte,Yfit);
 accRF = trace(cmat)/sum(sum(cmat))
 cmat_norm = cmat./repmat(sum(cmat,2),[1 length(cmat)])
-
+for c = 1:length(unique(Yte))
+    ic = find(Yte == c);
+    err(c) = sum(Yfit(ic)~=Yte(ic))/length(Yte(ic));
+end
+BER = mean(err); 
+BAcc = 1 -BER       %Balanced Accuracy
 %% reweigh the output based to favor trees with lower error rates on the target data
 %compute accuracy for each tree
 acc = [];
@@ -68,7 +73,7 @@ for t = 1:ntrees
     yt = RF.Trees{t}.predict(Xtarget);
     yt = str2num(cell2mat(yt));
     %acc(t) = sum(yt==Ytarget')/length(Ytarget);
-    for c = 1:unique(yt)
+    for c = 1:length(unique(yt))
         ic = find(Ytarget == c); 
         err(c) = sum(yt(ic)~=Ytarget(ic))/length(Ytarget(ic));
     end
@@ -77,15 +82,20 @@ for t = 1:ntrees
 end
 figure, plot(acc), xlabel('Tree'), ylabel('accuracy'), title('Balanced Accuracy on target data')
 
-% treeWeights = exp(1./(1-acc));
-treeWeights = acc;
+treeWeights = exp(1./(1-acc));
+% treeWeights = acc;
 figure, plot(treeWeights),xlabel('Tree'), ylabel('weight'), title('Weight on each tree')
 
 [Yfit_target,P_RF_target]=predict(RF,Xte,'TreeWeights',treeWeights);
 Yfit_target = str2num(cell2mat(Yfit_target));
-cmat = confusionmat(Yte,Yfit_target)
+cmat = confusionmat(Yte,Yfit_target);
 accRF_target = trace(cmat)/sum(sum(cmat))
 cmat_norm = cmat./repmat(sum(cmat,2),[1 length(cmat)])
 
-
+for c = 1:length(unique(Yte))
+    ic = find(Yte == c);
+    err(c) = sum(Yfit_target(ic)~=Yte(ic))/length(Yte(ic));
+end
+BER = mean(err); 
+BAcc_target = 1-BER       %Balanced Accuracy
 
