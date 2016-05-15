@@ -4,7 +4,11 @@ function [cmat, acc] = confusionMatrix_5(codesTrue,codesPredicted)
     %stars activities. Function also calculates overall accuracy. codesTrue
     %and codesPredict are numeric vectors with integer values ranging ONLY
     %from 1 to 5.
-
+    
+    if length(codesTrue) ~= length(codesPredicted)
+        error('Two input vector are not the same size.')
+    end
+    
     cmat = zeros(5,5);
     for t = 1:length(codesTrue)
         cmat(codesTrue(t),codesPredicted(t)) = cmat(codesTrue(t),codesPredicted(t)) + 1;
