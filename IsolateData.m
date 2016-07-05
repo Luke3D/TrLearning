@@ -7,10 +7,9 @@ for zz = 1:length(cData.subject)
     temp = char(cData.subject(zz));
     cData.subjectBrace(zz) = {temp(7:9)};
 end
-cData = isolateBrace(cData,'Cbr');
-
+cData = isolateBrace(cData,'SCO');  %Cbr or SCO data
 %% Remove stairs from patients above
-patient_stairs = [2 8 11 12 15];
+patient_stairs = [8 11 12 14 15 19];
 states = {'Sitting';'Stairs Dw';'Stairs Up';'Standing';'Walking'};
 
 features_main     = cData.features; %features for classifier
@@ -40,4 +39,4 @@ subjectID_main(stairs_remove) = [];
 sessionID_main(stairs_remove) = [];
 uniqStates_main  = unique(statesTrue_main); 
 
-save trainData.mat cData
+save trainDataSCO.mat cData
